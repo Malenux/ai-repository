@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "dev": "vite --mode development",
+    "build": "vite build --mode production",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "eslint": "^9.24.0",
+    "neostandard": "^0.12.1"
+  },
+  "dependencies": {
+    "vite": "^6.3.5"
+  }
+}
