@@ -232,20 +232,20 @@ class Chat extends HTMLElement {
     this.shadow.innerHTML = /* html */`
       <style>
         :host { 
-          --color-bg-main: #0a0a0a;           
-          --color-bg-secondary: #101010;      
-          --color-bg-panel: #121212;          
-          --color-bg-chat: #141414;           
-          --color-bg-input: #1a1a1a;          
-          --color-accent: #007bff;            
-          --color-accent-light: #339dff;      
-          --color-accent-dark: #005fcc;       
-          --color-border: #2a2a2a;            
-          --color-text: #e6e6e6;              
-          --color-text-secondary: #a0a0a0;    
-          --color-scroll-thumb: #3a3a3a;      
-          --color-scroll-track: #1a1a1a;      
-          --color-status-online: #00aaff;     
+          --color-bg-main:hsl(0, 0.00%, 3.90%);           
+          --color-bg-secondary:hsl(0, 0.00%, 6.30%);      
+          --color-bg-panel:hsl(0, 0.00%, 7.10%);          
+          --color-bg-chat:hsl(0, 0.00%, 7.80%);           
+          --color-bg-input:hsl(0, 0.00%, 10.20%);          
+          --color-accent: hsl(211, 100.00%, 50.00%);            
+          --color-accent-light:hsl(209, 44.80%, 53.10%);      
+          --color-accent-dark:rgb(0, 49, 105);       
+          --color-border:hsl(0, 0.00%, 16.50%);            
+          --color-text:hsl(0, 0.00%, 90.20%);              
+          --color-text-secondary:hsl(0, 0.00%, 62.70%);    
+          --color-scroll-thumb:hsl(0, 0.00%, 22.70%);      
+          --color-scroll-track:hsl(0, 0.00%, 10.20%);      
+          --color-status-online: hsl(200, 100.00%, 50.00%);     
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           display: flex;
           flex-direction: column;
@@ -324,6 +324,7 @@ class Chat extends HTMLElement {
           justify-content: flex-end;
           flex-direction: row-reverse;
           align-items: flex-start;
+          justify-content: flex-start;
         }
         .prompt.user .avatar {
           flex-shrink: 0;
@@ -333,6 +334,20 @@ class Chat extends HTMLElement {
           margin-bottom: 0.3em;
           font-size: 0.85em;
           opacity: 0.8;
+        }
+        .prompt.user .message-content p {
+          background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
+          color: white;
+          padding: 0.75em 1em;
+          border-radius: 1rem;
+          border-top-right-radius: 0;
+        }
+        .prompt.incoming .message-content p {
+          background: linear-gradient(135deg, var(--color-accent-dark), var(--color-accent));
+          color: white;
+          padding: 0.75em 1em;
+          border-radius: 1rem;
+          border-top-left-radius: 0;
         }
         .avatar {
           width: 2.5rem;
