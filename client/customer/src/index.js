@@ -1,3 +1,5 @@
 import './components/page.js'
+import './components/app.js'
+import './components/login.js'
 import './components/chat.js'
 import './components/not-found.js'

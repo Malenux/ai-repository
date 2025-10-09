@@ -4,12 +4,33 @@ class Chat extends HTMLElement {
     this.shadow = this.attachShadow({ mode: 'open' })
     this.socket = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://localhost:8080')
     this.socketReady = false
-    this.userName = localStorage.getItem('usuarioName') || null
+    this.userName = localStorage.getItem('chatUsername') || null
+    this.threadId = null
+    this.isTyping = false
+    this.pendingFile = null
   }
 
   connectedCallback () {
     this.render()
     this.addEventListeners()
+
+    // Soporte para login-component
+    window.addEventListener('login-success', (event) => {
+      console.log('✅ Login exitoso detectado:', event.detail)
+      this.userName = event.detail.username
+      localStorage.setItem('chatUsername', this.userName)
+      this.updateUserUI(this.userName)
+      this.hideWelcomeModal()
+      this.createSystemMessage(`¡Bienvenido ${this.userName}! El Moderador IA está supervisando el chat.`)
+
+      // Notificar conexión al WebSocket
+      if (this.socketReady) {
+        this.wsSend({
+          channel: 'colectivo',
+          data: JSON.stringify({ event: 'user_connected', data: { user: this.userName } })
+        })
+      }
+    })
 
     if (!this.userName) {
       this.shadow.querySelector('.modal-welcome').classList.add('visible')
@@ -30,17 +51,45 @@ class Chat extends HTMLElement {
 
     this.socket.addEventListener('message', event => {
       const data = JSON.parse(event.data)
+      console.log('📨 Mensaje WS recibido:', data)
+
       if (data.channel === 'colectivo') {
         try {
-          const inner = JSON.parse(data.data)
-          if (inner.event === 'new_message' && inner.data.user !== this.userName) {
-            this.createIncomingMessage(inner.data.user, inner.data.prompt)
-          } else if (inner.event === 'user_connected') {
-            this.createSystemMessage(` ○( ＾皿＾)っ Hehehe… ${inner.data.user} se ha conectado.`)
+          let messageData
+          if (typeof data.data === 'string') {
+            messageData = JSON.parse(data.data)
+          } else {
+            messageData = data.data
+          }
+
+          if (messageData.type === 'chat') {
+            if (messageData.username === this.userName) {
+              this.removeModeratingIndicator()
+              this.createUserMessage(messageData.username, messageData.message)
+              this.isTyping = false
+              const sendButton = this.shadow.querySelector('.send-button')
+              if (sendButton) sendButton.disabled = false
+            } else {
+              this.createIncomingMessage(messageData.username, messageData.message)
+            }
+          } else if (messageData.event === 'new_message' && messageData.data?.user !== this.userName) {
+            this.createIncomingMessage(messageData.data.user, messageData.data.prompt)
+          } else if (messageData.event === 'user_connected') {
+            this.createSystemMessage(` ○( ＾皿＾)っ Hehehe… ${messageData.data.user} se ha conectado.`)
           }
         } catch (err) {
           console.error('❌ Error parseando mensaje WS', err)
         }
+      }
+
+      if (data.type === 'moderation_blocked') {
+        this.removeModeratingIndicator()
+        const reason = data.reason || 'Tu mensaje contiene contenido inapropiado'
+        this.handleModerationBlocked(reason, data.originalMessage)
+      } else if (data.type === 'moderation_approved') {
+        this.handleModerationApproved(data)
+      } else if (data.type === 'ai_response') {
+        this.createAIMessage(data.message)
       }
     })
 
@@ -48,7 +97,6 @@ class Chat extends HTMLElement {
     this.socket.addEventListener('error', () => { this.socketReady = false })
   }
 
-  // --- Métodos para WebSockets ---
   wsSend (obj) {
     if (!this.socketReady) return
     this.socket.send(JSON.stringify(obj))
@@ -56,28 +104,32 @@ class Chat extends HTMLElement {
 
   wsSubscribe (channel) { this.wsSend({ type: 'subscribe', channel }) }
 
-  // --- Lógica del Chat ---
-  sendMessage () {
+  async sendMessage () {
     const chatInput = this.shadow.querySelector('.chat-input')
     const message = chatInput.value.trim()
-    if (!message || !this.userName) return
+    if (!message || !this.userName || this.isTyping) return
 
-    this.createUserMessage(this.userName, message)
+    this.isTyping = true
+    const sendButton = this.shadow.querySelector('.send-button')
+    if (sendButton) sendButton.disabled = true
+
     chatInput.value = ''
     chatInput.focus()
 
-    const payload = {
+    this.showModeratingIndicator()
+
+    this.wsSend({
+      type: 'chat',
       channel: 'colectivo',
-      data: JSON.stringify({ event: 'new_message', data: { prompt: message, user: this.userName } })
-    }
-    this.wsSend(payload)
+      username: this.userName,
+      message
+    })
   }
 
   createIncomingMessage (user, text) {
     this.removeWelcomeMessage()
     const chatMessages = this.shadow.querySelector('.chat-messages')
 
-    // Verificar si el último mensaje es del mismo usuario
     const lastMessage = chatMessages.lastElementChild
     if (
       lastMessage &&
@@ -85,13 +137,11 @@ class Chat extends HTMLElement {
     lastMessage.classList.contains('incoming') &&
     lastMessage.dataset.user === user
     ) {
-    // Ya existe un bloque del mismo usuario → solo agregamos el nuevo texto
       const content = lastMessage.querySelector('.message-content')
       const newParagraph = document.createElement('p')
       newParagraph.textContent = text
       content.appendChild(newParagraph)
     } else {
-    // Nuevo bloque de usuario
       const messageHTML = `
       <div class="prompt incoming" data-user="${user}">
         <div class="avatar">${user[0].toUpperCase()}</div>
@@ -110,7 +160,6 @@ class Chat extends HTMLElement {
     this.removeWelcomeMessage()
     const chatMessages = this.shadow.querySelector('.chat-messages')
 
-    // Verificar si el último mensaje es del mismo usuario
     const lastMessage = chatMessages.lastElementChild
     if (
       lastMessage &&
@@ -118,13 +167,11 @@ class Chat extends HTMLElement {
     lastMessage.classList.contains('user') &&
     lastMessage.dataset.user === user
     ) {
-    // Agrupar en el mismo bloque
       const content = lastMessage.querySelector('.message-content')
       const newParagraph = document.createElement('p')
       newParagraph.textContent = text
       content.appendChild(newParagraph)
     } else {
-    // Crear bloque nuevo
       const messageHTML = `
       <div class="prompt user" data-user="${user}">
         <div class="avatar user-avatar">${user[0].toUpperCase()}</div>
@@ -155,10 +202,88 @@ class Chat extends HTMLElement {
 
   scrollToBottom () {
     const chatMessages = this.shadow.querySelector('.chat-messages')
-    chatMessages.scrollTop = chatMessages.scrollHeight
+    if (chatMessages) {
+      chatMessages.scrollTop = chatMessages.scrollHeight
+    }
   }
 
-  // --- Manejo de Usuario y Modales ---
+  showModeratingIndicator () {
+    this.removeWelcomeMessage()
+    const chatMessages = this.shadow.querySelector('.chat-messages')
+
+    const existing = chatMessages.querySelector('.moderating-indicator')
+    if (existing) existing.remove()
+
+    const indicatorHTML = `
+      <div class="moderating-indicator">
+        <div class="moderating-spinner"></div>
+        <div class="moderating-text">
+          <strong>Moderador IA comprobando el mensaje...</strong>
+          <p>Analizando contenido</p>
+        </div>
+      </div>`
+    chatMessages.insertAdjacentHTML('beforeend', indicatorHTML)
+    this.scrollToBottom()
+  }
+
+  removeModeratingIndicator () {
+    const chatMessages = this.shadow.querySelector('.chat-messages')
+    const indicator = chatMessages.querySelector('.moderating-indicator')
+    if (indicator) indicator.remove()
+  }
+
+  createAIMessage (text) {
+    this.removeWelcomeMessage()
+    const chatMessages = this.shadow.querySelector('.chat-messages')
+
+    const messageHTML = `
+      <div class="prompt ai-message">
+        <div class="avatar ai-avatar">🤖</div>
+        <div class="message-content">
+          <h3>Moderador IA</h3>
+          <p>${text}</p>
+        </div>
+      </div>`
+    chatMessages.insertAdjacentHTML('beforeend', messageHTML)
+    this.scrollToBottom()
+  }
+
+  handleModerationBlocked (reason, originalMessage) {
+    console.log('🚫 Mensaje bloqueado:', reason)
+
+    const chatMessages = this.shadow.querySelector('.chat-messages')
+    this.removeWelcomeMessage()
+
+    const warningHTML = `
+      <div class="moderation-warning">
+        <span class="warning-icon">⚠️</span>
+        <div class="warning-content">
+          <strong>Mensaje bloqueado por el Moderador IA</strong>
+          <p>${reason}</p>
+          ${originalMessage ? `<small>Tu mensaje: "${originalMessage}"</small>` : ''}
+        </div>
+      </div>`
+    chatMessages.insertAdjacentHTML('beforeend', warningHTML)
+
+    this.scrollToBottom()
+
+    this.isTyping = false
+    const sendButton = this.shadow.querySelector('.send-button')
+    if (sendButton) sendButton.disabled = false
+
+    setTimeout(() => {
+      const warning = chatMessages.querySelector('.moderation-warning')
+      if (warning) warning.remove()
+    }, 7000)
+  }
+
+  handleModerationApproved (data) {
+    console.log('✅ Mensaje aprobado por moderador IA:', data)
+    if (data.message) {
+      this.createAIMessage(data.message)
+    }
+  }
+
   handleSetUsername (modalSelector, inputSelector) {
     const modal = this.shadow.querySelector(modalSelector)
     const input = this.shadow.querySelector(inputSelector)
@@ -167,7 +292,7 @@ class Chat extends HTMLElement {
     if (newName) {
       const oldName = this.userName
       this.userName = newName
-      localStorage.setItem('usuarioName', newName)
+      localStorage.setItem('chatUsername', newName)
 
       this.updateUserUI(newName)
 
@@ -178,6 +303,7 @@ class Chat extends HTMLElement {
           channel: 'colectivo',
           data: JSON.stringify({ event: 'user_connected', data: { user: newName } })
         })
+        this.createSystemMessage(`¡Bienvenido ${newName}! El Moderador IA está supervisando el chat.`)
       }
 
       modal.classList.remove('visible')
@@ -194,7 +320,13 @@ class Chat extends HTMLElement {
     }
   }
 
-  // --- Renderizado y Eventos ---
+  hideWelcomeModal () {
+    const modal = this.shadow.querySelector('.modal-welcome')
+    if (modal) {
+      modal.classList.remove('visible')
+    }
+  }
+
   addEventListeners () {
     this.shadow.querySelector('.send-button').addEventListener('click', () => this.sendMessage())
     this.shadow.querySelector('.chat-input').addEventListener('keypress', (e) => {
@@ -253,7 +385,7 @@ class Chat extends HTMLElement {
           background-color: var(--color-bg-main);
         }
         * { padding: 0; margin: 0; box-sizing: border-box; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .main-container { display: flex; flex: 1; overflow: hidden; height: calc(100% - 4.5rem); }
 
         /* PANEL IZQUIERDO */
 
@@ -272,7 +404,7 @@ class Chat extends HTMLElement {
           color: var(--color-accent);
           border: 0.13rem solid var(--color-accent);
           border-radius: 2em;
-          padding: 0.5em;
+          padding: 0.2em;
           cursor: pointer;
           transition: all 0.2s;
         }
@@ -376,6 +508,99 @@ class Chat extends HTMLElement {
           color: var(--color-text-secondary); 
           line-height: 1.5; 
           white-space: pre-wrap; 
+        }
+        
+        /* MENSAJES IA Y MODERACIÓN */
+        .prompt.ai-message .avatar.ai-avatar {
+          background: linear-gradient(135deg, #f59e0b, #d97706);
+          font-size: 1.2em;
+        }
+        .prompt.ai-message .message-content p {
+          background: linear-gradient(135deg, #065f46, #047857);
+          color: white;
+          padding: 0.75em 1em;
+          border-radius: 1rem;
+          border-top-left-radius: 0;
+          box-shadow: -0.13rem 0 0.31rem rgba(0,0,0,0.5);
+        }
+
+        /* INDICADOR DE MODERACIÓN */
+        .moderating-indicator {
+          display: flex;
+          align-items: center;
+          gap: 1em;
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid #3b82f6;
+          border-radius: 0.75rem;
+          padding: 1em;
+          margin: 1em 0;
+          animation: slideIn 0.3s ease, pulse 2s ease-in-out infinite;
+        }
+        .moderating-spinner {
+          width: 1.5em;
+          height: 1.5em;
+          border: 3px solid rgba(59, 130, 246, 0.3);
+          border-top-color: #3b82f6;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          flex-shrink: 0;
+        }
+        .moderating-text strong {
+          color: #3b82f6;
+          display: block;
+          margin-bottom: 0.25em;
+          font-size: 0.95em;
+        }
+        .moderating-text p {
+          color: #93c5fd;
+          font-size: 0.85em;
+          margin: 0;
+          opacity: 0.8;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+
+        .moderation-warning {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.75em;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid #ef4444;
+          border-radius: 0.75rem;
+          padding: 1em;
+          margin: 1em 0;
+          animation: slideIn 0.3s ease;
+        }
+        .warning-icon {
+          font-size: 1.5em;
+          flex-shrink: 0;
+        }
+        .warning-content strong {
+          color: #ef4444;
+          display: block;
+          margin-bottom: 0.25em;
+        }
+        .warning-content p {
+          color: #fca5a5;
+          font-size: 0.9em;
+          margin: 0;
+        }
+        .warning-content small {
+          display: block;
+          color: #fecaca;
+          font-size: 0.8em;
+          margin-top: 0.5em;
+          font-style: italic;
+          opacity: 0.8;
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         /* INPUT */
