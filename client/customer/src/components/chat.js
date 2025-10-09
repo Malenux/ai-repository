@@ -237,9 +237,9 @@ class Chat extends HTMLElement {
           --color-bg-panel:hsl(0, 0.00%, 7.10%);          
           --color-bg-chat:hsl(0, 0.00%, 7.80%);           
           --color-bg-input:hsl(0, 0.00%, 10.20%);          
-          --color-accent: hsl(211, 100.00%, 50.00%);            
-          --color-accent-light:hsl(209, 44.80%, 53.10%);      
-          --color-accent-dark:rgb(0, 49, 105);       
+          --color-accent: hsl(210, 100.00%, 36.10%);            
+          --color-accent-light: hsl(210, 100.00%, 50.00%);      
+          --color-accent-dark:hsl(212, 100.00%, 20.60%);       
           --color-border:hsl(0, 0.00%, 16.50%);            
           --color-text:hsl(0, 0.00%, 90.20%);              
           --color-text-secondary:hsl(0, 0.00%, 62.70%);    
@@ -318,7 +318,7 @@ class Chat extends HTMLElement {
 
         /* MENSAJES */
 
-        .prompt { display: flex; gap: 1em; align-items: flex-start; }
+        .prompt { display: flex; gap: 1em; align-items: flex-start;}
         .prompt .message-content p + p { margin-top: 1.5em; }
         .prompt.user {
           justify-content: flex-end;
@@ -335,19 +335,22 @@ class Chat extends HTMLElement {
           font-size: 0.85em;
           opacity: 0.8;
         }
+        
+        .prompt.incoming .message-content p, 
         .prompt.user .message-content p {
-          background: linear-gradient(135deg, var(--color-accent), var(--color-accent-dark));
           color: white;
           padding: 0.75em 1em;
           border-radius: 1rem;
+        }
+        .prompt.user .message-content p{
+          background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
           border-top-right-radius: 0;
+          box-shadow: 0.13rem 0 0.31rem rgba(0,0,0,0.5)
         }
         .prompt.incoming .message-content p {
           background: linear-gradient(135deg, var(--color-accent-dark), var(--color-accent));
-          color: white;
-          padding: 0.75em 1em;
-          border-radius: 1rem;
           border-top-left-radius: 0;
+          box-shadow: -0.13rem 0 0.31rem rgba(0,0,0,0.5)
         }
         .avatar {
           width: 2.5rem;
@@ -383,6 +386,7 @@ class Chat extends HTMLElement {
           display: flex;
           gap: 0.63em;
           align-items: center;
+          box-shadow: -0.13rem 0 0.31rem rgba(0,0,0,0.5)
         }
         .chat-input {
           flex: 1;
@@ -397,8 +401,9 @@ class Chat extends HTMLElement {
           resize: vertical;
           max-height: 9.38rem;
           overflow-y: auto;
+          box-shadow: -0.13rem 0 0.31rem rgba(0,0,0,0.5)
         }
-        .chat-input:focus { border-color: var(--color-accent); }
+        .chat-input:focus { border-color: var(--color-accent); box-shadow: 0 0}
 
         /* SCROLLBAR PERSONALIZADA PARA INPUT */
 
