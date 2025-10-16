@@ -333,8 +333,30 @@ class Chat extends HTMLElement {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.sendMessage() }
     })
 
+    this.shadow.querySelector('.welcome-modal-button').addEventListener('click', () => {
+      this.handleSetUsername('.modal-welcome', '.welcome-modal-input')
+    })
+    this.shadow.querySelector('.welcome-modal-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.handleSetUsername('.modal-welcome', '.welcome-modal-input')
+    })
+
     this.shadow.querySelector('.footer-user-button').addEventListener('click', () => {
-      this.shadow.querySelector('.logout-button').classList.add('visible')
+      this.shadow.querySelector('.change-name-modal-input').value = this.userName
+      this.shadow.querySelector('.modal-change-name').classList.add('visible')
+    })
+
+    this.shadow.querySelector('.change-name-modal-button').addEventListener('click', () => {
+      this.handleSetUsername('.modal-change-name', '.change-name-modal-input')
+    })
+
+    this.shadow.querySelector('.change-name-modal-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.handleSetUsername('.modal-change-name', '.change-name-modal-input')
+    })
+
+    this.shadow.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) { modal.classList.remove('visible') }
+      })
     })
   }
 
@@ -602,7 +624,6 @@ class Chat extends HTMLElement {
           background: var(--color-bg-input);
           color: var(--color-text);
           resize: vertical;
-          min-height: 2.5rem;
           max-height: 9.38rem;
           overflow-y: auto;
           box-shadow: -0.13rem 0 0.31rem rgba(0,0,0,0.5)
@@ -688,24 +709,79 @@ class Chat extends HTMLElement {
         }
         .status.disponible { background-color: var(--color-status-online); }
 
-        /*LOGOUT*/
-        .visible { opacity: 1; z-index: 100; pointer-events: auto; }
+        /* MODAL */
 
-        .logout-button { display: none; }
-
-        
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.3s ease;
+        }
+        .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+        .modal-content {
+          background: var(--color-bg-panel);
+          color: var(--color-text);
+          padding: 2em;
+          border-radius: 0.5rem;
+          width: 90%;
+          max-width: 25rem;
+          text-align: center;
+        }
+        .modal-content h2 { margin-bottom: 1em; }
+        .modal-content p { margin-bottom: 1.5em; color: var(--color-text-secondary); }
+        .modal-input {
+          width: 100%;
+          padding: 0.75em;
+          border-radius: 0.31rem;
+          border: 0.06rem solid var(--color-border);
+          background: var(--color-bg-input);
+          color: white;
+          font-size: 1em;
+          margin-bottom: 1.5em;
+        }
+        .modal-button {
+          width: 100%;
+          padding: 0.75em;
+          border: none;
+          border-radius: 0.31rem;
+          background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
+          color: white;
+          font-size: 1em;
+          font-weight: bold;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .modal-button:hover { background: var(--color-accent-light); }
 
       </style>
 
-      <!-- MODAL DE LOGOUT -->
-      <div class="modal modal-logout visible">
+
+      <!-- MODAL DE BIENVENIDA -->
+      <div class="modal-overlay modal-welcome">
         <div class="modal-content">
-          <h2 class="modal-title">¿Seguro que desea cerrar sesión?</h2>
-          <p class="modal-message">Si cierra sesión, tendrá que volver a iniciar sesión para acceder al chat.</p>
-          <div class="modal-actions">
-            <button class="button-confirm-logout">Cerrar sesión</button>
-            <button class="button-cancel-logout">Cancelar</button>
-          </div>
+          <h2>¡Bienvenido al Chat!</h2>
+          <p>Para continuar, por favor introduce tu nombre de usuario.</p>
+          <input type="text" class="modal-input welcome-modal-input" placeholder="Tu nombre...">
+          <button class="modal-button welcome-modal-button">Entrar al Chat</button>
+        </div>
+      </div>
+      
+      <!-- MODAL PARA CAMBIAR NOMBRE -->
+      <div class="modal-overlay modal-change-name">
+        <div class="modal-content">
+          <h2>Cambiar Nombre</h2>
+          <p>Introduce tu nuevo nombre de usuario.</p>
+          <input type="text" class="modal-input change-name-modal-input">
+          <button class="modal-button change-name-modal-button">Guardar Cambios</button>
         </div>
       </div>
 
@@ -739,7 +815,6 @@ class Chat extends HTMLElement {
             <div>Notificaciones</div>
           </li>
           <li class="footer-user-button">
-            <button class="logout-button visible"> Cerrar sesión </button>
             <div class="footer-user-icon-wrapper">
               <div class="footer-user-avatar">${this.userName ? this.userName[0].toUpperCase() : '?'}</div>
               <div class="status disponible"></div>
